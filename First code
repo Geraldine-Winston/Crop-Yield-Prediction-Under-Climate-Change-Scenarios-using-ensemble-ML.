@@ -1,0 +1,61 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, StackingRegressor
+from xgboost import XGBRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.preprocessing import StandardScaler
+
+# 1. Load the dataset (replace with your actual dataset)
+data = pd.read_csv('crop_yield_climate_data.csv')
+
+# 2. Preprocess the data
+# Example columns: ['temperature', 'rainfall', 'co2', 'soil_moisture', 'crop_yield']
+X = data.drop('crop_yield', axis=1)
+y = data['crop_yield']
+
+# Standardize features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# 3. Split into train and test sets
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+# 4. Define base models
+rf = RandomForestRegressor(n_estimators=100, random_state=42)
+gbm = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
+xgb = XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
+
+# 5. Define Stacking Regressor
+estimators = [
+    ('rf', rf),
+    ('gbm', gbm),
+    ('xgb', xgb)
+]
+
+stacked_model = StackingRegressor(
+    estimators=estimators,
+    final_estimator=GradientBoostingRegressor()
+)
+
+# 6. Train the ensemble model
+stacked_model.fit(X_train, y_train)
+
+# 7. Predictions
+y_pred = stacked_model.predict(X_test)
+
+# 8. Evaluate the model
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print(f"Mean Squared Error: {mse:.2f}")
+print(f"R^2 Score: {r2:.2f}")
+
+# 9. Cross-validation scores
+cv_scores = cross_val_score(stacked_model, X_scaled, y, cv=5, scoring='r2')
+print(f"Cross-validated R^2 Scores: {cv_scores}")
+print(f"Average R^2 Score: {np.mean(cv_scores):.2f}")
+
+# 10. Save the model (optional)
+import joblib
+joblib.dump(stacked_model, 'crop_yield_ensemble_model.pkl')
